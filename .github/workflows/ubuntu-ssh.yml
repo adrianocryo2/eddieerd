@@ -1,0 +1,36 @@
+name: TOOLBOXLAP-Linux
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup-ssh-tunnel:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download and install Playit
+      run: |
+        curl -Lo playit https://github.com/playit-cloud/playit-agent/releases/download/v0.15.26/playit-linux-amd64
+        chmod +x playit
+
+    - name: Set up SSH and user access
+      run: |
+        sudo apt update
+        sudo apt install -y openssh-server
+        echo "runner:admin@123" | sudo chpasswd
+        sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        echo "AllowUsers runner" | sudo tee -a /etc/ssh/sshd_config
+        sudo systemctl enable ssh
+        sudo systemctl restart ssh
+
+    - name: Start Playit Tunnel
+      env:
+        PLAYIT_AUTH_KEY: ${{ secrets.PL }}
+      run: |
+        nohup ./playit --secret "$PLAYIT_AUTH_KEY" > playit.log 2>&1 &
+        sleep 10
+        tail -n 20 playit.log
+
+    - name: Keep Runner Alive
+      run: sleep 21600  # 6 hours
